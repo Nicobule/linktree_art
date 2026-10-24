@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quaderno di esperimenti</title>
+<meta name="description" content="Progetti artistici in Python, HTML e Java. Tutto il codice è aperto.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: colonna stretta per il telefono; in alto una griglia-puzzle di miniature generative e caselle vuote che si scambiano, sotto l'elenco degli esperimenti con link a demo e codice. */
+:root {
+  --bg: #ECEEF4;
+  --surface: #FFFFFF;
+  --ink: #15171F;
+  --muted: #5D6273;
+  --line: #C9CDDA;
+  --accent: #3242E8;
+  --accent-ink: #FFFFFF;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1116; --surface: #191C24; --ink: #EDEFF6; --muted: #9AA0B4;
+    --line: #2E3241; --accent: #8D97FF; --accent-ink: #0F1116; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1116; --surface: #191C24; --ink: #EDEFF6; --muted: #9AA0B4;
+  --line: #2E3241; --accent: #8D97FF; --accent-ink: #0F1116; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.5 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+.page {
+  max-width: 460px;
+  margin: 0 auto;
+  padding-block: 40px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+/* --- Profilo --- */
+.profile { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+.avatar {
+  width: 68px; height: 68px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center;
+  font: 800 26px/1 var(--font-display);
+  overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile h1 {
+  margin: 0;
+  font: 800 clamp(26px, 7vw, 32px)/1.05 var(--font-display);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.profile .handle { margin: 4px 0 0; font: 400 13px/1.3 var(--font-mono); color: var(--muted); }
+.bio { margin: 0; color: var(--muted); max-width: 40ch; grid-column: 1 / -1; }
+
+/* --- Griglia-puzzle --- */
+.board-wrap { display: flex; flex-direction: column; gap: 10px; }
+.board {
+  --cols: 4;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  gap: 6px;
+}
+.cell {
+  aspect-ratio: 1;
+  max-width: 100%;
+  border-radius: var(--radius);
+  position: relative;
+  will-change: transform;
+}
+.cell.empty { border: 1.5px dashed var(--line); }
+.cell.empty::after {
+  content: ""; position: absolute; inset: 50% auto auto 50%;
+  width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%;
+  background: var(--line);
+}
+.cell.work {
+  display: block;
+  overflow: hidden;
+  background: var(--surface);
+  text-decoration: none;
+  box-shadow: 0 1px 0 var(--line), 0 6px 14px -10px rgba(20, 22, 31, 0.35);
+  z-index: 1;
+}
+.cell.work img, .cell.work canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cell.work:hover { z-index: 3; }
+.cell.work .label {
+  position: absolute; inset: auto 0 0 0;
+  padding: 18px 7px 6px;
+  font: 500 10px/1.2 var(--font-mono);
+  color: #fff;
+  background: linear-gradient(to top, rgba(10, 12, 18, 0.82), transparent);
+  opacity: 0; transition: opacity 160ms ease;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cell.work:hover .label, .cell.work:focus-visible .label { opacity: 1; }
+.cell.wip { overflow: hidden; background: var(--surface); border: 1px solid var(--line); z-index: 1; }
+.cell.wip canvas { width: 100%; height: 100%; display: block; opacity: 0.45; }
+.cell.wip .tag {
+  position: absolute; left: 6px; top: 6px;
+  font: 500 9px/1 var(--font-mono); letter-spacing: 0.08em;
+  padding: 4px 5px; border-radius: 4px;
+  background: var(--bg); color: var(--muted);
+}
+
+.board-caption {
+  display: flex; justify-content: space-between; gap: 12px;
+  font: 400 12px/1.4 var(--font-mono); color: var(--muted);
+}
+.board-caption button {
+  font: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* --- Elenco esperimenti --- */
+.section-title {
+  margin: 0 0 12px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  display: flex; justify-content: space-between;
+}
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.item {
+  display: grid; grid-template-columns: 52px 1fr; gap: 14px; align-items: center;
+  padding: 8px 12px 8px 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: border-color 160ms ease;
+}
+.item.flash, .item:hover { border-color: var(--accent); }
+.item .thumb { width: 52px; height: 52px; border-radius: 8px; overflow: hidden; display: block; }
+.item .thumb img, .item .thumb canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+.item .text { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.item .top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.item .name { font: 600 16px/1.2 var(--font-display); text-decoration: none; min-width: 0; }
+.item .year { font: 400 12px/1 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.item .desc { margin: 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.item .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.item .row a {
+  font: 500 11px/1 var(--font-mono); text-decoration: none;
+  padding: 6px 9px; border-radius: 999px; background: var(--ink); color: var(--bg);
+}
+.item .row a.ghost { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 5px 8px; }
+.item .row a:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.item.wip-card { grid-template-columns: 52px 1fr; background: transparent; border-style: dashed; }
+.item.wip-card .thumb { border: 1px dashed var(--line); display: grid; place-items: center; font: 500 11px/1 var(--font-mono); color: var(--muted); }
+.item.wip-card .name { color: var(--muted); }
+
+/* --- Contatti --- */
+.contacts { display: flex; flex-wrap: wrap; gap: 8px; }
+.contacts a {
+  font: 500 14px/1 var(--font-body);
+  padding: 12px 16px; border-radius: 999px;
+  text-decoration: none; border: 1px solid var(--ink);
+}
+.contacts a.primary { background: var(--ink); color: var(--bg); }
+.contacts a:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+footer { font: 400 12px/1.5 var(--font-mono); color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .item, .cell.work .label { transition: none; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header class="profile">
+    <div class="avatar" id="avatar"></div>
+    <div>
+      <h1 id="name"></h1>
+      <p class="handle" id="handle"></p>
+    </div>
+    <p class="bio" id="bio"></p>
+  </header>
+
+  <section class="board-wrap" aria-label="Anteprime degli esperimenti">
+    <div class="board" id="board"></div>
+    <div class="board-caption">
+      <span id="counter"></span>
+      <button type="button" id="toggle" aria-pressed="false">Ferma</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="works-title">
+    <h2 class="section-title" id="works-title"><span>Esperimenti</span><span id="works-count"></span></h2>
+    <ul class="list" id="list"></ul>
+  </section>
+
+  <section aria-labelledby="contact-title">
+    <h2 class="section-title" id="contact-title"><span>Dove trovarmi</span></h2>
+    <nav class="contacts" id="contacts"></nav>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script>
+/* =====================================================================
+   MODIFICA QUI — tutto il contenuto della pagina è in questi blocchi.
+   Per ogni progetto:
+   - repo:  link al repository (obbligatorio)
+   - demo:  link alla versione da vedere/provare (facoltativo, "" se non c'è)
+   - image: percorso di uno screenshot o di un'immagine generata (es. "img/campo.png").
+            Se è vuoto, la miniatura viene disegnata dal codice con lo stile
+            "art" ("flow", "grid", "rings", "dots", "waves") e i colori "colors".
+   ===================================================================== */
+const PROFILE = {
+  name: "nicobule",
+  handle: "github.com/nicobule",
+  initials: "NB",
+  avatar: "",                       // es. "img/avatar.jpg"
+  bio: "Il primo lavoro è Sound Visual Art: carichi un'immagine e la trasformi in ASCII, Braille, retino o pixel che si muovono con la musica o con la voce dal microfono. Altri esperimenti sono in lavorazione e compariranno qui, uno alla volta.",
+};
+
+/* Un progetto con wip: true è una tessera "in lavorazione": non ha link.
+   Quando è pronto, togli wip e aggiungi title, desc, lang, year, repo, demo. */
+const WORKS = [
+  { title: "Sound Visual Art", desc: "Immagini trasformate in caratteri, retini e pixel che reagiscono al suono e al puntatore. Palette fosforo, ambra e Game Boy, effetti CRT, glitch e bloom; salva in PNG o registra.", lang: "HTML", year: 2026, repo: "https://github.com/nicobule/sound_visual_art", demo: "https://nicobule.github.io/sound_visual_art/", image: "", art: "ascii", colors: ["#0B0F0C", "#7CFF8A"] },
+  { wip: true, art: "flow" },
+  { wip: true, art: "grid" },
+  { wip: true, art: "waves" },
+  { wip: true, art: "dots" },
+  { wip: true, art: "rings" },
+];
+
+const LINKS = [
+  { label: "GitHub", url: "https://github.com/nicobule", primary: true },
+  // { label: "Email", url: "mailto:tuoindirizzo@esempio.it" },
+];
+
+const FOOTER = "Il codice è libero: forkalo, rompilo, rifallo. Se ne nasce qualcosa, fammelo vedere.";
+
+/* Griglia: colonne, quante caselle vuote lasciare e ogni quanto avviene uno scambio. */
+const GRID = { cols: 4, emptyCells: 6, intervalMs: 1600 };
+/* ===================================================================== */
+
+const $ = (id) => document.getElementById(id);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function shortUrl(url) {
+  try { const u = new URL(url); return (u.hostname.replace(/^www\./, "") + u.pathname).replace(/\/$/, ""); } catch { return url; }
+}
+
+/* --- Miniature generative --- */
+function rng(seed) {
+  let h = 2166136261;
+  for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+}
+
+const ARTS = {
+  ascii(ctx, s, r) {
+    const chars = ".:-=+*#%@", n = 11, c = s / n, ph = r() * 6;
+    ctx.font = `600 ${c * 1.05}px "JetBrains Mono", ui-monospace, Consolas, monospace`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const dx = i - n / 2, dy = j - n / 2, d = Math.hypot(dx, dy);
+      const v = (Math.sin(d * 0.9 - ph) * 0.5 + 0.5) * (1 - d / (n * 0.75)) + (r() - 0.5) * 0.15;
+      const ch = chars[Math.max(0, Math.min(chars.length - 1, Math.floor(v * chars.length)))];
+      ctx.globalAlpha = 0.5 + Math.max(0, v) * 0.5;
+      ctx.fillText(ch, i * c + c / 2, j * c + c / 2);
+    }
+    ctx.globalAlpha = 1;
+  },
+  flow(ctx, s, r) {
+    ctx.lineWidth = s * 0.006; ctx.globalAlpha = 0.75;
+    const k = 2 + r() * 3, ph = r() * 6;
+    for (let i = 0; i < 70; i++) {
+      let x = r() * s, y = r() * s;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      for (let j = 0; j < 40; j++) {
+        const a = Math.sin(x / s * k + ph) * 2 + Math.cos(y / s * k) * 2;
+        x += Math.cos(a) * s * 0.012; y += Math.sin(a) * s * 0.012;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  },
+  grid(ctx, s, r) {
+    const n = 6, c = s / n; ctx.lineWidth = s * 0.03; ctx.lineCap = "round";
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const x = i * c, y = j * c; ctx.beginPath();
+      if (r() < 0.5) { ctx.arc(x, y, c / 2, 0, Math.PI / 2); ctx.moveTo(x + c, y + c / 2); ctx.arc(x + c, y + c, c / 2, -Math.PI / 2, Math.PI, true); }
+      else { ctx.arc(x + c, y, c / 2, Math.PI / 2, Math.PI); ctx.moveTo(x + c / 2, y + c); ctx.arc(x, y + c, c / 2, 0, -Math.PI / 2, true); }
+      ctx.stroke();
+    }
+  },
+  rings(ctx, s, r) {
+    ctx.lineWidth = s * 0.004; ctx.globalAlpha = 0.8;
+    const R = s * 0.3, rr = s * (0.05 + r() * 0.12), d = s * (0.06 + r() * 0.1);
+    ctx.beginPath();
+    for (let t = 0; t < Math.PI * 40; t += 0.04) {
+      const x = s / 2 + (R - rr) * Math.cos(t) + d * Math.cos((R - rr) / rr * t);
+      const y = s / 2 + (R - rr) * Math.sin(t) - d * Math.sin((R - rr) / rr * t);
+      t === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  },
+  dots(ctx, s, r) {
+    const pts = Array.from({ length: 26 }, () => [r() * s, r() * s]);
+    ctx.lineWidth = s * 0.004; ctx.globalAlpha = 0.55;
+    for (const [x, y] of pts) for (const [u, v] of pts) {
+      if (Math.hypot(x - u, y - v) < s * 0.22) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(u, v); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+    for (const [x, y] of pts) { ctx.beginPath(); ctx.arc(x, y, s * (0.01 + r() * 0.02), 0, Math.PI * 2); ctx.fill(); }
+  },
+  waves(ctx, s, r) {
+    ctx.lineWidth = s * 0.007;
+    for (let i = 1; i < 14; i++) {
+      const y0 = i * s / 14, amp = s * 0.05 * (1 - Math.abs(i - 7) / 8), f = 3 + r() * 6, ph = r() * 6;
+      ctx.beginPath();
+      for (let x = 0; x <= s; x += 2) {
+        const env = Math.sin(Math.PI * x / s);
+        const y = y0 + Math.sin(x / s * f * Math.PI + ph) * amp * env * 2;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  },
+};
+
+function visual(work) {
+  if (work.image) {
+    const img = document.createElement("img");
+    img.src = work.image; img.alt = ""; img.loading = "lazy";
+    return img;
+  }
+  const size = 200, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = size * dpr;
+  const ctx = cv.getContext("2d");
+  ctx.scale(dpr, dpr);
+  if (work.wip) {
+    // Bozza: solo tratto, nel colore attenuato del tema
+    const fg = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim();
+    ctx.strokeStyle = fg; ctx.fillStyle = fg;
+    ctx.setLineDash([4, 4]);
+  } else {
+    const [bg, fg] = work.colors || ["#DDE0EA", "#15171F"];
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = fg; ctx.fillStyle = fg;
+  }
+  (ARTS[work.art] || ARTS.flow)(ctx, size, rng(work.title || work.art + WORKS.indexOf(work)));
+  return cv;
+}
+
+function link(href, text, cls) {
+  const a = document.createElement("a");
+  a.href = href; a.textContent = text;
+  if (cls) a.className = cls;
+  if (!href.startsWith("mailto:")) { a.target = "_blank"; a.rel = "noopener"; }
+  return a;
+}
+
+/* --- Profilo, elenco e contatti --- */
+$("name").textContent = PROFILE.name;
+$("handle").textContent = PROFILE.handle;
+$("bio").textContent = PROFILE.bio;
+if (PROFILE.avatar) {
+  const img = document.createElement("img"); img.src = PROFILE.avatar; img.alt = PROFILE.name;
+  $("avatar").appendChild(img);
+} else {
+  $("avatar").textContent = PROFILE.initials;
+}
+const done = WORKS.filter((w) => !w.wip);
+const wipCount = WORKS.length - done.length;
+$("works-count").textContent = String(done.length).padStart(2, "0");
+$("footer").textContent = FOOTER;
+
+WORKS.forEach((w, i) => {
+  if (w.wip) return;
+  const li = document.createElement("li");
+  li.className = "item"; li.id = `work-${i}`;
+  const thumb = link(w.demo || w.repo, "", "thumb");
+  thumb.setAttribute("aria-label", w.title);
+  thumb.appendChild(visual(w));
+
+  const text = document.createElement("div"); text.className = "text";
+  const top = document.createElement("div"); top.className = "top";
+  const name = link(w.demo || w.repo, w.title, "name");
+  const year = document.createElement("span"); year.className = "year"; year.textContent = w.year;
+  top.append(name, year);
+  const desc = document.createElement("p"); desc.className = "desc"; desc.textContent = w.desc;
+  const row = document.createElement("div"); row.className = "row";
+  if (w.demo) row.appendChild(link(w.demo, "Apri ↗"));
+  row.appendChild(link(w.repo, "Codice ↗", w.demo ? "ghost" : ""));
+  text.append(top, desc, row);
+
+  li.append(thumb, text);
+  $("list").appendChild(li);
+});
+
+if (wipCount) {
+  const li = document.createElement("li");
+  li.className = "item wip-card";
+  li.innerHTML = `<span class="thumb">WIP</span>
+    <div class="text"><div class="top"><span class="name"></span></div><p class="desc"></p></div>`;
+  li.querySelector(".name").textContent = `${wipCount} esperimenti in lavorazione`;
+  li.querySelector(".desc").textContent = "Sono le tessere tratteggiate nella griglia. Il codice arriva su GitHub appena sono pronti.";
+  $("list").appendChild(li);
+}
+
+LINKS.forEach((l) => $("contacts").appendChild(link(l.url, l.label, l.primary ? "primary" : "")));
+
+/* --- Griglia-puzzle --- */
+const board = $("board");
+const cols = GRID.cols;
+const total = Math.ceil((WORKS.length + GRID.emptyCells) / cols) * cols;
+board.style.setProperty("--cols", cols);
+
+// slots[pos] = elemento che occupa quella posizione
+const slots = [];
+const items = WORKS.map((w, i) => {
+  if (w.wip) {
+    const d = document.createElement("div");
+    d.className = "cell wip"; d.setAttribute("aria-label", "Esperimento in lavorazione");
+    const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "WIP";
+    d.append(visual(w), tag);
+    return d;
+  }
+  const a = link(w.demo || w.repo, "", "cell work");
+  a.setAttribute("aria-label", `${w.title}, ${w.lang}`);
+  a.appendChild(visual(w));
+  const label = document.createElement("span"); label.className = "label"; label.textContent = w.title;
+  a.appendChild(label);
+  a.addEventListener("mouseenter", () => $(`work-${i}`).classList.add("flash"));
+  a.addEventListener("mouseleave", () => $(`work-${i}`).classList.remove("flash"));
+  return a;
+});
+const empties = Array.from({ length: total - items.length }, () => {
+  const d = document.createElement("div"); d.className = "cell empty"; d.setAttribute("aria-hidden", "true");
+  return d;
+});
+
+// Posizioni iniziali mescolate
+const pool = [...items, ...empties];
+for (let i = pool.length - 1; i > 0; i--) {
+  const j = Math.floor(Math.random() * (i + 1));
+  [pool[i], pool[j]] = [pool[j], pool[i]];
+}
+pool.forEach((el, pos) => { slots[pos] = el; place(el, pos); board.appendChild(el); });
+
+function place(el, pos) {
+  el.style.gridRow = String(Math.floor(pos / cols) + 1);
+  el.style.gridColumn = String((pos % cols) + 1);
+}
+
+function neighbours(pos) {
+  const r = Math.floor(pos / cols), c = pos % cols, rows = total / cols, out = [];
+  if (r > 0) out.push(pos - cols);
+  if (r < rows - 1) out.push(pos + cols);
+  if (c > 0) out.push(pos - 1);
+  if (c < cols - 1) out.push(pos + 1);
+  return out;
+}
+
+function swap(p1, p2) {
+  const a = slots[p1], b = slots[p2];
+  const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+  slots[p1] = b; slots[p2] = a;
+  place(a, p2); place(b, p1);
+  for (const [el, first] of [[a, ra], [b, rb]]) {
+    const last = el.getBoundingClientRect();
+    const dx = first.left - last.left, dy = first.top - last.top;
+    el.animate(
+      [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
+      { duration: 620, easing: "cubic-bezier(.7, 0, .25, 1)" }
+    );
+  }
+}
+
+let lastMoved = null;
+function step() {
+  // Una casella vuota scambia posto con una tessera vicina (come nel gioco del 15)
+  const emptyPositions = slots.map((el, p) => (el.classList.contains("empty") ? p : -1)).filter((p) => p >= 0);
+  const moves = [];
+  for (const e of emptyPositions) {
+    for (const n of neighbours(e)) {
+      if (!slots[n].classList.contains("empty") && slots[n] !== lastMoved) moves.push([e, n]);
+    }
+  }
+  if (!moves.length) return;
+  const [e, n] = moves[Math.floor(Math.random() * moves.length)];
+  lastMoved = slots[n];
+  swap(e, n);
+}
+
+let timer = null, hovering = false, stopped = reduceMotion;
+function tick() { if (!hovering && !document.hidden) step(); }
+function start() { if (!timer && !stopped) timer = setInterval(tick, GRID.intervalMs); }
+function stop() { clearInterval(timer); timer = null; }
+
+board.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") hovering = true; });
+board.addEventListener("pointerleave", () => { hovering = false; });
+
+const toggle = $("toggle");
+function syncToggle() {
+  toggle.textContent = stopped ? "Riprendi" : "Ferma";
+  toggle.setAttribute("aria-pressed", String(stopped));
+}
+toggle.addEventListener("click", () => { stopped = !stopped; stopped ? stop() : start(); syncToggle(); });
+
+$("counter").textContent = `${done.length} online · ${wipCount} in lavorazione`;
+syncToggle();
+start();
+</script>
+</body>
+</html>
